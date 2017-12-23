@@ -3,61 +3,101 @@ import { expect } from 'chai';
 import { mount } from 'enzyme';
 import React from 'react';
 import sinon from 'sinon';
+import sinonStubPromise from 'sinon-stub-promise';
 import Version from '../js/components/Version.jsx';
 
-describe('Version', () => {
-  let loadFromServer;
+sinonStubPromise(sinon);
 
-  function setResponse(err, resp) {
-    return sinon.stub(Version.prototype, 'loadFromServer').callsFake(function fakeFn() {
-      this.handleResponse(err, resp);
-    });
+describe('Version', () => {
+  let curVer = "v1.2.3";
+  let newVer = "v2.3.4";
+
+  let component, fetchStub;
+
+  function withPromise(fn) {
+    return component.find("Version").get(0).serverPromise.then(fn);
   }
 
+  beforeEach(() => {
+    fetchStub = sinon.stub(window, 'fetch');
+  });
+
   afterEach(() => {
-    if (loadFromServer) { loadFromServer.restore(); }
+    window.fetch.restore();
   });
 
   it('renders initial loading message', () => {
-    let component = mount(<Version />);
+    fetchStub.returnsPromise().resolves({
+      ok: true,
+    });
+
+    component = mount(
+      <BrowserRouter>
+        <Version />
+      </BrowserRouter>
+    );
 
     expect(component.find("Version")).to.have.length(1);
-    expect(component.text().indexOf("Performing version check...")).to.not.equal(-1);
+    expect(component.html()).to.include("Performing version check...");
   });
 
   it('renders up to date message when versions match', () => {
-    loadFromServer = setResponse(null, {responseText: "{\"version\": \"v1.2.3\"}"});
+    fetchStub.returnsPromise().resolves({
+      ok: true,
+      json: () => Promise.resolve({ version: curVer })
+    });
 
-    let component = mount(
-      <Version
-        releaseVersion="v1.2.3"
-        uuid="fakeuuid" />
-    );
-
-    expect(component.text().indexOf("Conduit is up to date")).to.not.equal(-1);
-  });
-
-  it('renders update message when versions do match', () => {
-    loadFromServer = setResponse(null, {responseText: "{\"version\": \"v2.3.4\"}"});
-
-    // must wrap Version in a BrowserRouter because this test case renders a Link,
-    // Link's must always be wrapped in a Router
-    let component = mount(
+    component = mount(
       <BrowserRouter>
         <Version
-          releaseVersion="v1.2.3"
+          releaseVersion={curVer}
           uuid="fakeuuid" />
       </BrowserRouter>
     );
 
-    expect(component.text().indexOf("A new version (v2.3.4) is available")).to.not.equal(-1);
+    return withPromise(() => {
+      expect(component.html()).to.include("Conduit is up to date");
+    });
+  });
+
+  it('renders update message when versions do not match', () => {
+    fetchStub.returnsPromise().resolves({
+      ok: true,
+      json: () => Promise.resolve({ version: newVer })
+    });
+
+    component = mount(
+      <BrowserRouter>
+        <Version
+          releaseVersion={curVer}
+          uuid="fakeuuid" />
+      </BrowserRouter>
+    );
+
+    return withPromise(() => {
+      expect(component.html()).to.include("A new version (");
+      expect(component.html()).to.include(newVer);
+      expect(component.html()).to.include(") is available");
+    });
   });
 
   it('renders error when version check fails', () => {
-    loadFromServer = setResponse({statusText: "Fake error"}, null);
+    let errMsg = "Fake error";
 
-    let component = mount(<Version />);
+    fetchStub.returnsPromise().resolves({
+      ok: false,
+      statusText: errMsg
+    });
 
-    expect(component.text().indexOf("Version check failed: Fake error")).to.not.equal(-1);
+    component = mount(
+      <BrowserRouter>
+        <Version />
+      </BrowserRouter>
+    );
+
+    return withPromise(() => {
+      expect(component.html()).to.include("Version check failed");
+      expect(component.html()).to.include(errMsg);
+    });
   });
 });

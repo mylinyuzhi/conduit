@@ -70,10 +70,6 @@
     lodash "^4.2.0"
     to-fast-properties "^2.0.0"
 
-"@mapbox/corslite@^0.0.7":
-  version "0.0.7"
-  resolved "https://registry.yarnpkg.com/@mapbox/corslite/-/corslite-0.0.7.tgz#29f5b6a188ba946e514bdf0b6401ed4fbe13a39e"
-
 "@std/esm@^0.16.0":
   version "0.16.0"
   resolved "https://registry.yarnpkg.com/@std/esm/-/esm-0.16.0.tgz#2a7a33ecb7f1701cebd4c87df6d0d945ed51f730"

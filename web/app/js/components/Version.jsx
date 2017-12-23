@@ -1,4 +1,4 @@
-import corslite from '@mapbox/corslite';
+import { ApiHelpers } from './util/ApiHelpers.js';
 import { Link } from 'react-router-dom';
 import React from 'react';
 import './../../css/version.css';
@@ -7,45 +7,44 @@ export default class Version extends React.Component {
 
   constructor(props) {
     super(props);
-    this.handleResponse = this.handleResponse.bind(this);
-    this.state = {err: null, done: false, latest: null};
+    this.loadFromServer = this.loadFromServer.bind(this);
+    this.handleApiError = this.handleApiError.bind(this);
+    this.state = {err: null, latest: null, loaded: false, pendingRequests: false,};
   }
 
   componentDidMount() {
     this.loadFromServer();
   }
 
-  handleResponse(error, resp) {
-    let latest = null;
-    let err = null;
-
-    if (resp && resp.responseText) {
-      let json = JSON.parse(resp.responseText);
-      if (json.version) {
-        latest = json.version;
-      }
+  loadFromServer() {
+    if (this.state.pendingRequests) {
+      return; // don't make more requests if the ones we sent haven't completed
     }
+    this.setState({ pendingRequests: true });
 
-    if (!latest && error && error.statusText) {
-      err = error.statusText;
-    }
-
-    this.setState({ err: err, done: true, latest: latest });
+    let versionUrl = `https://versioncheck.conduit.io/version.json?version=${this.props.releaseVersion}?uuid=${this.props.uuid}`;
+    let versionFetch = ApiHelpers("").fetch(versionUrl);
+    // expose serverPromise for testing
+    this.serverPromise = Promise.all([versionFetch])
+      .then(([resp]) => {
+        this.setState({
+          latest: resp.version,
+          loaded: true,
+          pendingRequests: false,
+        });
+      }).catch(this.handleApiError);
   }
 
-  loadFromServer() {
-    if (this.state.done) {
-      return;
-    }
-    corslite(
-      `https://versioncheck.conduit.io/version?version=${this.props.releaseVersion}?uuid=${this.props.uuid}`,
-      this.handleResponse,
-      true
-    );
+  handleApiError(e) {
+    this.setState({
+      loaded: true,
+      pendingRequests: false,
+      err: e
+    });
   }
 
   renderVersionCheck() {
-    if (!this.state.done) {
+    if (!this.state.loaded || this.state.pendingRequests) {
       return "Performing version check...";
     }
 
